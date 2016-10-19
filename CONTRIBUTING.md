@@ -85,14 +85,11 @@ npm run build-min
 
 Once that command finishes, you will have a standalone build at `dist/mapbox-gl.js` and `dist/mapbox-gl.css`
 
-## Running Tests
+## Writing & Running Tests
 
-There are two test suites associated with Mapbox GL JS
+See [`test/README.md`](https://github.com/mapbox/mapbox-gl-js/blob/master/test/README.md).
 
- - `npm test` runs quick unit tests
- - `npm run test-suite` runs integration tests from the [mapbox-gl-test-suite](https://github.com/mapbox/mapbox-gl-test-suite) repository
-
-## Running Benchmarks
+## Writing & Running Benchmarks
 
 See [`bench/README.md`](https://github.com/mapbox/mapbox-gl-js/blob/master/bench/README.md).
 
@@ -100,10 +97,25 @@ See [`bench/README.md`](https://github.com/mapbox/mapbox-gl-js/blob/master/bench
 
 * We use [`error` events](https://www.mapbox.com/mapbox-gl-js/api/#Map.event:error) to report user errors.
 * We use [`assert`](https://nodejs.org/api/assert.html) to check invariants that are not likely to be caused by user error. These `assert` statements are stripped out of production builds.
+* We use the following ES6 features:
+  * `let`/`const`
+  * `for...of` loops (for arraylike iteration only, i.e. what is supported by [Bublé's `dangerousForOf` transform](https://buble.surge.sh/guide/#dangerous-transforms))
+  * Arrow functions
+  * Classes
+  * Template strings
+  * Computed and shorthand object properties
+* The following ES6 features are not to be used, in order to maintain support for Node 4.x, IE 11, and older mobile browsers. This may change in the future.
+  * Default parameters
+  * Rest parameters
+  * Spread (`...`) operator
+  * Destructuring
+  * Iterators and generators
+  * "Library" features such as `Map`, `Set`, `array.find`, etc.
+  * Modules
 
 ### Version Control Conventions
 
-* We use [rebase merging](https://git-scm.com/book/en/v2/Git-Branching-Rebasing) (as opposed to [basic merging](https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging#Basic-Merging)) to merge branches 
+* We use [rebase merging](https://git-scm.com/book/en/v2/Git-Branching-Rebasing) (as opposed to [basic merging](https://git-scm.com/book/en/v2/Git-Branching-Basic-Branching-and-Merging#Basic-Merging)) to merge branches
 
 ## Documentation Conventions
 

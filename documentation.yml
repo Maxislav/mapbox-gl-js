@@ -13,10 +13,10 @@ toc:
     description: |
       Controls add new functionality and user interface
       elements to the map.
-  - Navigation
-  - Geolocate
-  - Attribution
-  - Scale
+  - NavigationControl
+  - GeolocateControl
+  - AttributionControl
+  - ScaleControl
   - Control
   - name: Handlers
     description: |
@@ -56,6 +56,7 @@ toc:
   - MapMouseEvent
   - MapTouchEvent
   - MapBoxZoomEvent
+  - MapDataEvent
   - name: Types
     description: |
       These are types used in the documentation above to describe arguments,

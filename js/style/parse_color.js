@@ -1,17 +1,18 @@
 'use strict';
 
-var parseColorString = require('csscolorparser').parseCSSColor;
-var util = require('../util/util');
-var StyleFunction = require('./style_function');
+const parseColorString = require('csscolorparser').parseCSSColor;
+const util = require('../util/util');
+const StyleFunction = require('./style_function');
 
-var cache = {};
+const cache = {};
 
 module.exports = function parseColor(input) {
 
     if (StyleFunction.isFunctionDefinition(input)) {
 
-        return util.extend({}, input, {
-            stops: input.stops.map(function(stop) {
+        if (!input.stops) return input;
+        else return util.extend({}, input, {
+            stops: input.stops.map((stop) => {
                 return [stop[0], parseColor(stop[1])];
             })
         });
@@ -19,8 +20,8 @@ module.exports = function parseColor(input) {
     } else if (typeof input === 'string') {
 
         if (!cache[input]) {
-            var rgba = parseColorString(input);
-            if (!rgba) { throw new Error('Invalid color ' + input); }
+            const rgba = parseColorString(input);
+            if (!rgba) { throw new Error(`Invalid color ${input}`); }
 
             // GL expects all components to be in the range [0, 1] and to be
             // multipled by the alpha value.
@@ -34,7 +35,10 @@ module.exports = function parseColor(input) {
 
         return cache[input];
 
+    } else if (Array.isArray(input)) {
+        return input;
+
     } else {
-        throw new Error('Invalid color ' + input);
+        throw new Error(`Invalid color ${input}`);
     }
 };
