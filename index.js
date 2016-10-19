@@ -10,6 +10,7 @@ function init() {
     let elMap = document.getElementById("id-map");
     var map = new mapboxgl.Map({
         container: elMap, // container id
+        //style: 'mapbox://styles/mapbox/streets-v9',
         style: 'myCustomStyle.json', //'mapbox://styles/mapbox/streets-v9', //stylesheet location
         center: [30.50, 50.5], // starting position
         zoom: 9 // starting zoom
@@ -26,13 +27,13 @@ function init() {
                 },
                 "properties": {
                     "title": "Mapbox DC",
-                    "icon": "japan",
-                    "icon-url": "sprite2/sprite"
+                    "icon": "japan"
+                    //"icon-url": "sprite2/sprite"
                 }
             }]
         };
 
-       
+
 
         setTimeout(function () {
 
@@ -66,7 +67,7 @@ function init() {
                 },1000)
 
             },2000);*/
-           
+
 
             setTimeout(function () {
                 map.addLayer({

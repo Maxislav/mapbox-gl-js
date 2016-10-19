@@ -423,6 +423,16 @@ Style.prototype = util.inherit(Evented, {
             this._updates.sources[layer.source] = true;
         }
 
+        var s = this;
+        setTimeout( () => {
+            //TODO еще можно изменить
+            s.sprite = new ImageSprite('sprite2/sprite');
+            s.sprite.setEventedParent(s);
+            // this.sprite.resize()
+            //это не помогает
+            //this.updateClasses(layer.id);
+        },2000);
+
         return this.updateClasses(layer.id);
     },
 

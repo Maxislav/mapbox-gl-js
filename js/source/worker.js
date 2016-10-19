@@ -64,6 +64,10 @@ util.extend(Worker.prototype, {
     },
 
     'redo placement': function(mapId, params, callback) {
+       // console.log(params.type);
+        if(!params.type){
+            params.type = "geojson"
+        }
         assert(params.type);
         this.getWorkerSource(mapId, params.type).redoPlacement(params, callback);
     },

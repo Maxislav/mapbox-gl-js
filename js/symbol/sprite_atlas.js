@@ -64,9 +64,11 @@ SpriteAtlas.prototype.allocateImage = function(pixelWidth, pixelHeight) {
 };
 
 SpriteAtlas.prototype.getImage = function(name, wrap) {
-    if (this.images[name]) {
+   // console.log("oldols")
+
+    /*if (this.images[name]) {
         return this.images[name];
-    }
+    }*/
 
     if (!this.sprite) {
         return null;

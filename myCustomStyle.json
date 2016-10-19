@@ -2,7 +2,6 @@
   "version": 8,
   "name": "Google default",
   "sprite": "sprite/sprite",
-  "glyphs": "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
   "sources": {
     "google-default": {
       "type": "raster",
