@@ -41,6 +41,7 @@
     "whoots-js": "^2.0.0"
   },
   "devDependencies": {
+    "http-server": "^0.9.0",
     "babel-preset-react": "^6.11.1",
     "benchmark": "~2.1.0",
     "browserify": "^13.0.0",
@@ -97,6 +98,7 @@
     "./js/util/web_worker.js": "./js/util/browser/web_worker.js"
   },
   "scripts": {
+    "http-server": "node_modules/.bin/http-server -p 8000",
     "build-dev": "browserify js/mapbox-gl.js --debug --ignore-transform unassertify --standalone mapboxgl > dist/mapbox-gl-dev.js && tap --no-coverage test/build/dev.test.js",
     "watch-dev": "watchify js/mapbox-gl.js --debug --ignore-transform unassertify --standalone mapboxgl --outfile dist/mapbox-gl-dev.js --verbose",
     "build-min": "browserify js/mapbox-gl.js --debug --plugin [minifyify --map mapbox-gl.js.map --output dist/mapbox-gl.js.map] --standalone mapboxgl > dist/mapbox-gl.js && tap --no-coverage test/build/min.test.js",

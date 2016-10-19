@@ -1,0 +1,8 @@
+/**
+ * Created by maxislav on 19.10.16.
+ */
+{
+    "port": 8000,
+    "files": ["./src/**/*.{html,htm,css,js}"],
+    "server": { "baseDir": "./src" }
+}
