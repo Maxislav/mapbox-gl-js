@@ -665,6 +665,18 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
         this._update(true);
         return this;
     },
+    //TODO свой временный метод
+    updateSourceSprite: function (url) {
+        this.style.updateSourceSprite(url);
+
+        setTimeout(function () {
+            this._update(true);
+        }.bind(this), 1000);
+
+       //
+        return this;
+    },
+
 
     /**
      * Adds a [custom source type](#Custom Sources), making it available for use with
@@ -1023,7 +1035,6 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @private
      */
     _render: function() {
-        try {
             if (this.style && this._styleDirty) {
                 this._styleDirty = false;
                 this.style.update(this._classes, this._classOptions);
@@ -1061,9 +1072,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
                 this._rerender();
             }
 
-        } catch (error) {
-            this.fire('error', {error: error});
-        }
+       
 
         return this;
     },

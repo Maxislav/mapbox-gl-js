@@ -3,12 +3,29 @@
 var browser = require('../util/browser');
 var drawCollisionDebug = require('./draw_collision_debug');
 var pixelsToTileUnits = require('../source/pixels_to_tile_units');
+var ImageSprite = require('../style/image_sprite');
+var ajax = require('../util/ajax');
+
+var img = null;
+
+ajax.getImage('01.jpg', function (a, _img) {
+    img = _img
+    //img.getData()
+});
+
+var sprite = null;
+
 
 
 module.exports = drawSymbols;
 
 function drawSymbols(painter, source, layer, coords) {
+    //TODO drawSymbols
+    //console.log('drawSymbols');
     if (painter.isOpaquePass) return;
+    window.painter = painter;
+   // console.log('drawSymbols', painter);
+
 
     var drawAcrossEdges = !(layer.layout['text-allow-overlap'] || layer.layout['icon-allow-overlap'] ||
         layer.layout['text-ignore-placement'] || layer.layout['icon-ignore-placement']);
@@ -29,6 +46,7 @@ function drawSymbols(painter, source, layer, coords) {
     painter.setDepthSublayer(0);
     painter.depthMask(false);
     gl.disable(gl.DEPTH_TEST);
+   // painter.spriteAtlas.sprite.img = img;
 
     drawLayerSymbols(painter, source, layer, coords, false,
             layer.paint['icon-translate'],
@@ -75,16 +93,40 @@ function drawLayerSymbols(painter, source, layer, coords, isText,
         opacity,
         color) {
 
+
+    /*ajax.getImage('01.jpg', function (a, img) {
+
+    });*/
+
+
+
     for (var j = 0; j < coords.length; j++) {
+
+
+
         var tile = source.getTile(coords[j]);
         var bucket = tile.getBucket(layer);
         if (!bucket) continue;
         var bothBufferGroups = bucket.bufferGroups;
-        var bufferGroups = isText ? bothBufferGroups.glyph : bothBufferGroups.icon;
+        //var bufferGroups = isText ? bothBufferGroups.glyph : bothBufferGroups.icon;
+        var bufferGroups = isText ? bothBufferGroups.glyph : source.getTile(coords[j]).getBucket(layer).bufferGroups.icon;;
+
+        //console.log( bothBufferGroups.icon);
+
         if (!bufferGroups.length) continue;
 
+        var b = source.getTile(coords[j]).getBucket(layer).bufferGroups.icon;
+
+        //TODO Один симфол drawSymbol
+        //console.info('BufferGroup', b[0]);
+
+       // console.log('Один симфол drawSymbol');
         painter.enableTileClippingMask(coords[j]);
-        drawSymbol(painter, layer, coords[j].posMatrix, tile, bucket, bufferGroups, isText,
+        //painter.spriteAtlas.sprite.img =  img;
+        //painter.style.sprite = sprite || (sprite = new ImageSprite('sprite2/sprite'));
+
+
+        drawSymbol(painter, layer, coords[j].posMatrix, tile, bucket, isText,
                 isText || bucket.sdfIcons, !isText && bucket.iconsNeedLinear,
                 isText ? bucket.adjustedTextSize : bucket.adjustedIconSize, bucket.fontstack,
                 translate,
@@ -100,7 +142,31 @@ function drawLayerSymbols(painter, source, layer, coords, isText,
     }
 }
 
-function drawSymbol(painter, layer, posMatrix, tile, bucket, bufferGroups, isText, sdf, iconsNeedLinear, adjustedSize, fontstack,
+/**
+ *
+ * @param painter
+ * @param layer
+ * @param posMatrix
+ * @param tile
+ * @param bucket
+ * @param bufferGroups
+ * @param isText
+ * @param sdf
+ * @param iconsNeedLinear
+ * @param adjustedSize
+ * @param fontstack
+ * @param translate
+ * @param translateAnchor
+ * @param rotationAlignment
+ * @param pitchAlignment
+ * @param size
+ * @param haloWidth
+ * @param haloColor
+ * @param haloBlur
+ * @param opacity
+ * @param color
+ */
+function drawSymbol(painter, layer, posMatrix, tile, bucket, isText, sdf, iconsNeedLinear, adjustedSize, fontstack,
         translate,
         translateAnchor,
         rotationAlignment,
@@ -112,6 +178,28 @@ function drawSymbol(painter, layer, posMatrix, tile, bucket, bufferGroups, isTex
         opacity,
         color) {
 
+    var canvas = document.createElement("canvas");
+    canvas.setAttribute("id", "canvas");
+    var bufferGroups = bucket.bufferGroups.icon
+
+    /** Наш спрайт*/
+   // console.log(painter.spriteAtlas.sprite);
+    //painter.spriteAtlas.sprite.data;
+   // painter.spriteAtlas.sprite.data.img //исходник картинкa;
+    //painter.spriteAtlas.sprite.data.img = img  //исходник картинкa;
+  //  painter.spriteAtlas.sprite.img = img;  //исходник картинкa;
+    //size = 5;
+
+
+    //painter.spriteAtlas.sprite.data.img =
+        //ajax.getImage.
+    /**исходный json */
+    //console.log();
+
+
+
+    //console.log(bufferGroups, isText);
+    /** mapbox-gl map canvas*/
     var gl = painter.gl;
     var tr = painter.transform;
     var rotateWithMap = rotationAlignment === 'map';
@@ -204,10 +292,12 @@ function drawSymbol(painter, layer, posMatrix, tile, bucket, bufferGroups, isTex
         }
 
     } else {
+        //return;
         gl.uniform1f(program.u_opacity, opacity);
         for (var k = 0; k < bufferGroups.length; k++) {
             group = bufferGroups[k];
             group.vaos[layer.id].bind(gl, program, group.layoutVertexBuffer, group.elementBuffer);
+
             gl.drawElements(gl.TRIANGLES, group.elementBuffer.length * 3, gl.UNSIGNED_SHORT, 0);
         }
     }

@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+</head>
+<body>
+<output id="result"></output>
+<script>
+    var worker = new Worker('worker.js');
+    worker.onmessage = function (event) {
+        document.getElementById('result').textContent += ', ' + event.data;
+    };
+    worker.postMessage({from:17,to:50});
+</script>
+</body>
+</html>

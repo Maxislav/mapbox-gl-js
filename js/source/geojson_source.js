@@ -132,7 +132,11 @@ GeoJSONSource.prototype = util.inherit(Evented, /** @lends GeoJSONSource.prototy
      */
     _updateWorkerData: function(callback) {
         var options = util.extend({}, this.workerOptions);
+
         var data = this._data;
+
+        console.log('Установка слоя и его опций', data);
+
         if (typeof data === 'string') {
             options.url = resolveURL(data);
         } else {
@@ -144,6 +148,7 @@ GeoJSONSource.prototype = util.inherit(Evented, /** @lends GeoJSONSource.prototy
         // implementation
         this.workerID = this.dispatcher.send(this.type + '.loadData', options, function(err) {
             this._loaded = true;
+            //console.log(options);
             callback(err);
 
         }.bind(this));

@@ -1,0 +1,16 @@
+{
+  "japan": {
+    "width": 68,
+    "height": 68,
+    "x": 2,
+    "y": 0,
+    "pixelRatio": 2
+  },
+  "artillery": {
+    "width": 66,
+    "height": 66,
+    "x": 80,
+    "y": 2,
+    "pixelRatio": 2
+  }
+}

@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Map-Box-Gl</title>
+    <script src="index.js"></script>
+    <script src="dist/mapbox-gl-dev.js"></script>
+</head>
+<style>
+    *{
+        margin: 0;
+        padding: 0;
+    }
+    html, body{
+        width: 100%;
+        height: 100%;
+    }
+    map#id-map{
+        display: block;
+        width: 100%;
+        height: 100%;
+    }
+</style>
+
+<body onload="init()">
+    <map id="id-map"></map>
+</body>
+</html>

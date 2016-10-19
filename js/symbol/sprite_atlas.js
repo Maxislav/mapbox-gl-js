@@ -64,9 +64,11 @@ SpriteAtlas.prototype.allocateImage = function(pixelWidth, pixelHeight) {
 };
 
 SpriteAtlas.prototype.getImage = function(name, wrap) {
-    if (this.images[name]) {
+    
+    console.info('SpriteAtlas.prototype.getImage' );
+    /*if (this.images[name]) {
         return this.images[name];
-    }
+    }*/
 
     if (!this.sprite) {
         return null;
@@ -164,6 +166,8 @@ SpriteAtlas.prototype.setSprite = function(sprite) {
 
 SpriteAtlas.prototype.addIcons = function(icons, callback) {
     for (var i = 0; i < icons.length; i++) {
+
+        console.info('SpriteAtlas.prototype.addIcons');
         this.getImage(icons[i]);
     }
 
@@ -194,6 +198,8 @@ SpriteAtlas.prototype.bind = function(gl, linear) {
 
         if (first) {
             gl.texImage2D(
+
+
                 gl.TEXTURE_2D, // enum target
                 0, // ind level
                 gl.RGBA, // ind internalformat

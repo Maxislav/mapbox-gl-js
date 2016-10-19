@@ -29,9 +29,11 @@ function ImageSprite(base) {
             return;
         }
 
+        /** Массив пикселей*/
         // premultiply the sprite
         var data = img.getData();
         var newdata = img.data = new Uint8Array(data.length);
+
         for (var i = 0; i < data.length; i += 4) {
             var alpha = data[i + 3] / 255;
             newdata[i + 0] = data[i + 0] * alpha;
@@ -41,6 +43,7 @@ function ImageSprite(base) {
         }
 
         this.img = img;
+
         if (this.data) this.fire('style.change');
     }.bind(this));
 }
@@ -58,6 +61,8 @@ ImageSprite.prototype.loaded = function() {
 ImageSprite.prototype.resize = function(/*gl*/) {
     if (browser.devicePixelRatio > 1 !== this.retina) {
         var newSprite = new ImageSprite(this.base);
+        
+        console.log('style.change');
         newSprite.on('style.change', function() {
             this.img = newSprite.img;
             this.data = newSprite.data;
@@ -65,6 +70,8 @@ ImageSprite.prototype.resize = function(/*gl*/) {
         }.bind(this));
     }
 };
+
+
 
 function SpritePosition() {}
 SpritePosition.prototype = { x: 0, y: 0, width: 0, height: 0, pixelRatio: 1, sdf: false };

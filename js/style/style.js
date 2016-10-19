@@ -20,6 +20,9 @@ var styleSpec = require('./style_spec');
 var StyleFunction = require('./style_function');
 var getWorkerPool = require('../global_worker_pool');
 
+var spritePath ='sprite/sprite' ;
+var k = 0;
+
 module.exports = Style;
 
 function Style(stylesheet, animationLoop, options) {
@@ -61,8 +64,16 @@ function Style(stylesheet, animationLoop, options) {
         }
 
         if (stylesheet.sprite) {
+
+            console.log("new ImageSprite");
             this.sprite = new ImageSprite(stylesheet.sprite);
             this.sprite.setEventedParent(this);
+
+            //TODO new ImageSprite timeout
+            setTimeout(function () {
+             //   this.sprite = new ImageSprite('sprite2/sprite');
+                //this.sprite.setEventedParent(this);
+            }.bind(this), 2000)
         }
 
         this.glyphSource = new GlyphSource(stylesheet.glyphs);
@@ -73,6 +84,8 @@ function Style(stylesheet, animationLoop, options) {
     if (typeof stylesheet === 'string') {
         ajax.getJSON(mapbox.normalizeStyleURL(stylesheet), stylesheetLoaded);
     } else {
+
+       console.log('stylesheetLoaded');
         browser.frame(stylesheetLoaded.bind(this, null, stylesheet));
     }
 
@@ -132,6 +145,7 @@ Style.prototype = util.inherit(Evented, {
 
         this._layers = {};
         this._order  = this.stylesheet.layers.map(function(layer) {
+            console.log(layer.id)
             return layer.id;
         });
 
@@ -268,6 +282,13 @@ Style.prototype = util.inherit(Evented, {
             throw new Error('Style is not done loading');
         }
     },
+    //TODO
+
+    updateSourceSprite: function (opts) {
+        this.sprite = new ImageSprite("sprite2/sprite");
+        this.sprite.setEventedParent(this);
+        console.log(opts)
+    },
 
     /**
      * Apply queued style updates in a batch
@@ -330,9 +351,16 @@ Style.prototype = util.inherit(Evented, {
 
         var builtIns = ['vector', 'raster', 'geojson', 'video', 'image'];
         var shouldValidate = builtIns.indexOf(source.type) >= 0;
-        if (shouldValidate && this._validate(validateStyle.source, 'sources.' + id, source, null, options)) return this;
+        if (shouldValidate && this._validate(validateStyle.source, 'sources.' + id, source, null, options)) {
+            return this
+        };
+
 
         source = new SourceCache(id, source, this.dispatcher);
+        if(id == "points"){
+            console.log('new SourceCache', source);
+        }
+
         this.sources[id] = source;
         source.style = this;
         source.setEventedParent(this, {source: source});
@@ -387,7 +415,12 @@ Style.prototype = util.inherit(Evented, {
      * @private
      */
     addLayer: function(layer, before, options) {
+        var l = layer;
+
         this._checkLoaded();
+        //TODO еще можно изменить
+     //  this.sprite = new ImageSprite('sprite2/sprite');
+       //this.sprite.setEventedParent(this);
 
         if (!(layer instanceof StyleLayer)) {
             // this layer is not in the style.layers array, so we pass an impossible array index
@@ -410,7 +443,16 @@ Style.prototype = util.inherit(Evented, {
         }
         this._updates.events.push(['layer.add', {layer: layer}]);
 
-        return this.updateClasses(layer.id);
+        setTimeout(function () {
+            //TODO еще можно изменить
+            this.sprite = new ImageSprite('sprite2/sprite');
+            this.sprite.setEventedParent(this);
+           // this.sprite.resize()
+            //это не помогает
+            //this.updateClasses(layer.id);
+        }.bind(this),1000);
+
+        this.updateClasses(layer.id);
     },
 
     /**
@@ -575,6 +617,8 @@ Style.prototype = util.inherit(Evented, {
             if (!props[layerId]) props[layerId] = {};
             props[layerId][paintName || 'all'] = true;
         }
+
+        console.log('updateClasses');
         return this;
     },
 
@@ -710,13 +754,21 @@ Style.prototype = util.inherit(Evented, {
     },
 
     // Callbacks from web workers
-
+    //TODO  Callbacks from web workers get icons
     'get icons': function(mapId, params, callback) {
         var sprite = this.sprite;
         var spriteAtlas = this.spriteAtlas;
         if (sprite.loaded()) {
             spriteAtlas.setSprite(sprite);
             spriteAtlas.addIcons(params.icons, callback);
+
+            setTimeout(function () {
+               // this.sprite = new ImageSprite('sprite2/sprite');
+                //this.sprite.setEventedParent(this);
+
+                //spriteAtlas.addIcons(params.icons, callback);
+            }.bind(this), 1000)
+
         } else {
             sprite.on('style.change', function() {
                 spriteAtlas.setSprite(sprite);

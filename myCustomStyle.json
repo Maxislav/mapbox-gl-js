@@ -1,0 +1,20 @@
+{
+  "version": 8,
+  "name": "Google default",
+  "sprite": "sprite/sprite",
+  "glyphs": "mapbox://fonts/mapbox/{fontstack}/{range}.pbf",
+  "sources": {
+    "google-default": {
+      "type": "raster",
+      "tiles":[
+        "http://mt0.googleapis.com/vt/lyrs=m@207000000&hl=ru&src=api&x={x}&y={y}&z={z}&s=Galile"
+      ],
+      "tileSize": 256
+    }
+  },
+  "layers": [{
+    "id": "google",
+    "source": "google-default",
+    "type": "raster"
+  }]
+}

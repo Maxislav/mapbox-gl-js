@@ -225,6 +225,10 @@ Painter.prototype.renderPass = function(options) {
         var group = groups[isOpaquePass ? groups.length - 1 - i : i];
         var source = this.style.sources[group.source];
 
+        if(source.id == "points"){
+            //console.log(source);
+        }
+
         var j;
         var coords = [];
         if (source) {
@@ -257,7 +261,12 @@ Painter.prototype.renderPass = function(options) {
         }
 
         if (source) {
-            draw.debug(this, source, coords);
+            if(source.id == 'points'){
+                draw.debug(this, source, coords);
+            }else{
+
+            }
+
         }
     }
 };
@@ -273,6 +282,13 @@ Painter.prototype.renderLayer = function(painter, source, layer, coords) {
     if (layer.isHidden(this.transform.zoom)) return;
     if (layer.type !== 'background' && !coords.length) return;
     this.id = layer.id;
+   // console.log(layer.type);
+    if(layer.type == 'symbol'){
+        //TODO рисуем символы
+        //console.log('symbol')
+
+        painter; source; layer; coords;
+    }
     draw[layer.type](painter, source, layer, coords);
 };
 

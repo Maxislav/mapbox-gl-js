@@ -61,11 +61,15 @@ exports.getImage = function(url, callback) {
         var blob = new window.Blob([new Uint8Array(imgData)], { type: 'image/png' });
         img.src = (window.URL || window.webkitURL).createObjectURL(blob);
         img.getData = function() {
+            //console.log(url);
             var canvas = window.document.createElement('canvas');
             var context = canvas.getContext('2d');
             canvas.width = img.width;
             canvas.height = img.height;
             context.drawImage(img, 0, 0);
+
+            console.log('Картинка загружена -> getData', url);
+           // console.log(img);
             return context.getImageData(0, 0, img.width, img.height).data;
         };
         return img;
