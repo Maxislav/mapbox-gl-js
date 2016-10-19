@@ -1,9 +1,9 @@
 'use strict';
 
-var Evented = require('../util/evented');
-var ajax = require('../util/ajax');
-var browser = require('../util/browser');
-var normalizeURL = require('../util/mapbox').normalizeSpriteURL;
+const Evented = require('../util/evented');
+const ajax = require('../util/ajax');
+const browser = require('../util/browser');
+const normalizeURL = require('../util/mapbox').normalizeSpriteURL;
 
 module.exports = ImageSprite;
 
@@ -11,31 +11,29 @@ function ImageSprite(base) {
     this.base = base;
     this.retina = browser.devicePixelRatio > 1;
 
-    var format = this.retina ? '@2x' : '';
+    const format = this.retina ? '@2x' : '';
 
-    ajax.getJSON(normalizeURL(base, format, '.json'), function(err, data) {
+    ajax.getJSON(normalizeURL(base, format, '.json'), (err, data) => {
         if (err) {
             this.fire('error', {error: err});
             return;
         }
 
         this.data = data;
-        if (this.img) this.fire('style.change');
-    }.bind(this));
+        if (this.img) this.fire('data', {dataType: 'style'});
+    });
 
-    ajax.getImage(normalizeURL(base, format, '.png'), function(err, img) {
+    ajax.getImage(normalizeURL(base, format, '.png'), (err, img) => {
         if (err) {
             this.fire('error', {error: err});
             return;
         }
 
-        /** Массив пикселей*/
         // premultiply the sprite
-        var data = img.getData();
-        var newdata = img.data = new Uint8Array(data.length);
-
-        for (var i = 0; i < data.length; i += 4) {
-            var alpha = data[i + 3] / 255;
+        const data = img.getData();
+        const newdata = img.data = new Uint8Array(data.length);
+        for (let i = 0; i < data.length; i += 4) {
+            const alpha = data[i + 3] / 255;
             newdata[i + 0] = data[i + 0] * alpha;
             newdata[i + 1] = data[i + 1] * alpha;
             newdata[i + 2] = data[i + 2] * alpha;
@@ -43,9 +41,8 @@ function ImageSprite(base) {
         }
 
         this.img = img;
-
-        if (this.data) this.fire('style.change');
-    }.bind(this));
+        if (this.data) this.fire('data', {dataType: 'style'});
+    });
 }
 
 ImageSprite.prototype = Object.create(Evented);
@@ -60,18 +57,14 @@ ImageSprite.prototype.loaded = function() {
 
 ImageSprite.prototype.resize = function(/*gl*/) {
     if (browser.devicePixelRatio > 1 !== this.retina) {
-        var newSprite = new ImageSprite(this.base);
-        
-        console.log('style.change');
-        newSprite.on('style.change', function() {
+        const newSprite = new ImageSprite(this.base);
+        newSprite.on('data', () => {
             this.img = newSprite.img;
             this.data = newSprite.data;
             this.retina = newSprite.retina;
-        }.bind(this));
+        });
     }
 };
-
-
 
 function SpritePosition() {}
 SpritePosition.prototype = { x: 0, y: 0, width: 0, height: 0, pixelRatio: 1, sdf: false };
@@ -79,7 +72,7 @@ SpritePosition.prototype = { x: 0, y: 0, width: 0, height: 0, pixelRatio: 1, sdf
 ImageSprite.prototype.getSpritePosition = function(name) {
     if (!this.loaded()) return new SpritePosition();
 
-    var pos = this.data && this.data[name];
+    const pos = this.data && this.data[name];
     if (pos && this.img) return pos;
 
     return new SpritePosition();

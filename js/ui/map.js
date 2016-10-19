@@ -1,30 +1,30 @@
 'use strict';
 
-var util = require('../util/util');
-var browser = require('../util/browser');
-var window = require('../util/window');
-var Evented = require('../util/evented');
-var DOM = require('../util/dom');
+const util = require('../util/util');
+const browser = require('../util/browser');
+const window = require('../util/window');
+const Evented = require('../util/evented');
+const DOM = require('../util/dom');
 
-var Style = require('../style/style');
-var AnimationLoop = require('../style/animation_loop');
-var Painter = require('../render/painter');
+const Style = require('../style/style');
+const AnimationLoop = require('../style/animation_loop');
+const Painter = require('../render/painter');
 
-var Transform = require('../geo/transform');
-var Hash = require('./hash');
+const Transform = require('../geo/transform');
+const Hash = require('./hash');
 
-var bindHandlers = require('./bind_handlers');
+const bindHandlers = require('./bind_handlers');
 
-var Camera = require('./camera');
-var LngLat = require('../geo/lng_lat');
-var LngLatBounds = require('../geo/lng_lat_bounds');
-var Point = require('point-geometry');
-var Attribution = require('./control/attribution');
-var isSupported = require('mapbox-gl-supported');
+const Camera = require('./camera');
+const LngLat = require('../geo/lng_lat');
+const LngLatBounds = require('../geo/lng_lat_bounds');
+const Point = require('point-geometry');
+const AttributionControl = require('./control/attribution_control');
+const isSupported = require('mapbox-gl-supported');
 
-var defaultMinZoom = 0;
-var defaultMaxZoom = 20;
-var defaultOptions = {
+const defaultMinZoom = 0;
+const defaultMaxZoom = 20;
+const defaultOptions = {
     center: [0, 0],
     zoom: 0,
     bearing: 0,
@@ -86,6 +86,9 @@ var defaultOptions = {
  *  * `mapbox://styles/mapbox/satellite-v9`
  *  * `mapbox://styles/mapbox/satellite-streets-v9`
  *
+ * Tilesets hosted with Mapbox can be style-optimized if you append `?optimize=true` to the end of your style URL, like `mapbox://styles/mapbox/streets-v9?optimize=true`.
+ * Learn more about style-optimized vector tiles in our [API documentation](https://www.mapbox.com/api-documentation/#retrieve-tiles).
+ *
  * @param {boolean} [options.hash=false] If `true`, the map's position (zoom, center latitude, center longitude, bearing, and pitch) will be synced with the hash fragment of the page's URL.
  *   For example, `http://path/to/my/page.html#2.59/39.26/53.07/-24.1/60`.
  * @param {boolean} [options.interactive=true] If `false`, no mouse, touch, or keyboard listeners will be attached to the map, so it will not respond to interaction.
@@ -96,7 +99,7 @@ var defaultOptions = {
  *   Keep in mind that these classes are used for controlling a style layer's paint properties, so are *not* reflected
  *   in an HTML element's `class` attribute. To learn more about Mapbox style classes, read about
  *   [Layers](https://www.mapbox.com/mapbox-gl-style-spec/#layers) in the style specification.
- * @param {boolean} [options.attributionControl=true] If `true`, an [Attribution](#Attribution) control will be added to the map.
+ * @param {boolean} [options.attributionControl=true] If `true`, an [AttributionControl](#AttributionControl) will be added to the map.
  * @param {boolean} [options.failIfMajorPerformanceCaveat=false] If `true`, map creation will fail if the performance of Mapbox
  *   GL JS would be dramatically worse than expected (i.e. a software renderer would be used).
  * @param {boolean} [options.preserveDrawingBuffer=false] If `true`, the map's canvas can be exported to a PNG using `map.getCanvas().toDataURL()`. This is `false` by default as a performance optimization.
@@ -121,9 +124,9 @@ var defaultOptions = {
  *   style: style_object,
  *   hash: true
  * });
+ * @see [Display a map](https://www.mapbox.com/mapbox-gl-js/examples/)
  */
-var Map = module.exports = function(options) {
-
+const Map = module.exports = function(options) {
     options = util.extend({}, defaultOptions, options);
 
     this._interactive = options.interactive;
@@ -159,10 +162,10 @@ var Map = module.exports = function(options) {
 
     this.on('move', this._update.bind(this, false));
     this.on('zoom', this._update.bind(this, true));
-    this.on('moveend', function() {
+    this.on('moveend', () => {
         this.animationLoop.set(300); // text fading
         this._rerender();
-    }.bind(this));
+    });
 
     if (typeof window !== 'undefined') {
         window.addEventListener('online', this._onWindowOnline, false);
@@ -188,7 +191,8 @@ var Map = module.exports = function(options) {
 
     if (options.classes) this.setClasses(options.classes);
     if (options.style) this.setStyle(options.style);
-    if (options.attributionControl) this.addControl(new Attribution(options.attributionControl));
+
+    if (options.attributionControl) this.addControl(new AttributionControl(options.attributionControl));
 
     this.on('style.load', function() {
         if (this.transform.unmodified) {
@@ -197,23 +201,13 @@ var Map = module.exports = function(options) {
         this.style.update(this._classes, {transition: false});
     });
 
-    this.on('style.change', function() {
-        this._update(true);
+    this.on('data', function(event) {
+        if (event.dataType === 'style') {
+            this._update(true);
+        } else {
+            this._update();
+        }
     });
-
-    this.on('source.add', function(event) {
-        var source = event.source;
-        if (source.onAdd) source.onAdd(this);
-    });
-
-    this.on('source.remove', function(event) {
-        var source = event.source;
-        if (source.onRemove) source.onRemove(this);
-    });
-
-    this.on('source.load', this._update);
-    this.on('source.change', this._update);
-    this.on('tile.load', this._update);
 };
 
 util.extend(Map.prototype, Evented);
@@ -225,6 +219,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      *
      * @param {Control} control The [`Control`](#Control) to add.
      * @returns {Map} `this`
+     * @see [Display map navigation controls](https://www.mapbox.com/mapbox-gl-js/example/navigation/)
      */
     addControl: function(control) {
         control.addTo(this);
@@ -261,7 +256,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @returns {Map} `this`
      */
     removeClass: function(klass, options) {
-        var i = this._classes.indexOf(klass);
+        const i = this._classes.indexOf(klass);
         if (i < 0 || klass === '') return this;
         this._classes.splice(i, 1);
         this._classOptions = options;
@@ -279,8 +274,8 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @returns {Map} `this`
      */
     setClasses: function(klasses, options) {
-        var uniqueClasses = {};
-        for (var i = 0; i < klasses.length; i++) {
+        const uniqueClasses = {};
+        for (let i = 0; i < klasses.length; i++) {
             if (klasses[i] !== '') uniqueClasses[klasses[i]] = true;
         }
         this._classes = Object.keys(uniqueClasses);
@@ -320,9 +315,9 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @returns {Map} `this`
      */
     resize: function() {
-        var dimensions = this._containerDimensions();
-        var width = dimensions[0];
-        var height = dimensions[1];
+        const dimensions = this._containerDimensions();
+        const width = dimensions[0];
+        const height = dimensions[1];
 
         this._resizeCanvas(width, height);
         this.transform.resize(width, height);
@@ -341,7 +336,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @returns {LngLatBounds} The map's geographical bounds.
      */
     getBounds: function() {
-        var bounds = new LngLatBounds(
+        const bounds = new LngLatBounds(
             this.transform.pointLocation(new Point(0, this.transform.height)),
             this.transform.pointLocation(new Point(this.transform.width, 0)));
 
@@ -368,7 +363,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      */
     setMaxBounds: function (lnglatbounds) {
         if (lnglatbounds) {
-            var b = LngLatBounds.convert(lnglatbounds);
+            const b = LngLatBounds.convert(lnglatbounds);
             this.transform.lngRange = [b.getWest(), b.getEast()];
             this.transform.latRange = [b.getSouth(), b.getNorth()];
             this.transform._constrain();
@@ -402,7 +397,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
 
             return this;
 
-        } else throw new Error('minZoom must be between ' + defaultMinZoom + ' and the current maxZoom, inclusive');
+        } else throw new Error(`minZoom must be between ${defaultMinZoom} and the current maxZoom, inclusive`);
     },
 
     /**
@@ -426,7 +421,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
 
             return this;
 
-        } else throw new Error('maxZoom must be between the current minZoom and ' + defaultMaxZoom + ', inclusive');
+        } else throw new Error(`maxZoom must be between the current minZoom and ${defaultMaxZoom}, inclusive`);
     },
     /**
      * Returns a [`Point`](#Point) representing pixel coordinates, relative to the map's `container`,
@@ -445,6 +440,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      *
      * @param {PointLike} point The pixel coordinates to unproject.
      * @returns {LngLat} The [`LngLat`](#LngLat) corresponding to `point`.
+     * @see [Show polygon information on click](https://www.mapbox.com/mapbox-gl-js/example/polygon-popup-on-click/)
      */
     unproject: function(point) {
         return this.transform.pointLocation(Point.convert(point));
@@ -514,10 +510,13 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @example
      * // Query all rendered features from a single layer
      * var features = map.queryRenderedFeatures({ layers: ['my-layer-name'] });
+     * @see [Get features under the mouse pointer](https://www.mapbox.com/mapbox-gl-js/example/queryrenderedfeatures/)
+     * @see [Highlight features within a bounding box](https://www.mapbox.com/mapbox-gl-js/example/using-box-queryrenderedfeatures/)
+     * @see [Center the map on a clicked symbol](https://www.mapbox.com/mapbox-gl-js/example/center-on-symbol/)
      */
     queryRenderedFeatures: function() {
-        var params = {};
-        var geometry;
+        let params = {};
+        let geometry;
 
         if (arguments.length === 2) {
             geometry = arguments[0];
@@ -549,14 +548,14 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
             ];
         }
 
-        var queryGeometry;
-        var isPoint = pointOrBox instanceof Point || typeof pointOrBox[0] === 'number';
+        let queryGeometry;
+        const isPoint = pointOrBox instanceof Point || typeof pointOrBox[0] === 'number';
 
         if (isPoint) {
-            var point = Point.convert(pointOrBox);
+            const point = Point.convert(pointOrBox);
             queryGeometry = [point];
         } else {
-            var box = [Point.convert(pointOrBox[0]), Point.convert(pointOrBox[1])];
+            const box = [Point.convert(pointOrBox[0]), Point.convert(pointOrBox[1])];
             queryGeometry = [
                 box[0],
                 new Point(box[1].x, box[0].y),
@@ -566,9 +565,9 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
             ];
         }
 
-        queryGeometry = queryGeometry.map(function(p) {
+        queryGeometry = queryGeometry.map((p) => {
             return this.transform.pointCoordinate(p);
-        }.bind(this));
+        });
 
         return queryGeometry;
     },
@@ -601,6 +600,8 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * rectangle, even if the highway extends into other tiles, and the portion of the highway within each map tile
      * will be returned as a separate feature. Similarly, a point feature near a tile boundary may appear in multiple
      * tiles due to tile buffering.
+     * @see [Filter features within map view](https://www.mapbox.com/mapbox-gl-js/example/filter-features-within-map-view/)
+     * @see [Highlight features containing similar data](https://www.mapbox.com/mapbox-gl-js/example/query-similar-features/)
      */
     querySourceFeatures: function(sourceID, params) {
         return this.style.querySourceFeatures(sourceID, params);
@@ -612,6 +613,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @param {Object|string} style A JSON object conforming to the schema described in the
      *   [Mapbox Style Specification](https://mapbox.com/mapbox-gl-style-spec/), or a URL to such JSON.
      * @returns {Map} `this`
+     * @see [Change a map's style](https://www.mapbox.com/mapbox-gl-js/example/setstyle/)
      */
     setStyle: function(style) {
         if (this.style) {
@@ -628,7 +630,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
         } else if (style instanceof Style) {
             this.style = style;
         } else {
-            this.style = new Style(style, this.animationLoop);
+            this.style = new Style(style, this);
         }
 
         this.style.setEventedParent(this, {style: this.style});
@@ -659,24 +661,15 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @param {string} source.type The source type, which must be either one of the core Mapbox GL source types defined in the style specification or a custom type that has been added to the map with {@link Map#addSourceType}.
      * @fires source.add
      * @returns {Map} `this`
+     * @see [Draw GeoJSON points](https://www.mapbox.com/mapbox-gl-js/example/geojson-markers/)
+     * @see [Style circles using data-driven styling](https://www.mapbox.com/mapbox-gl-js/example/data-driven-circle-colors/)
+     * @see [Set a point after Geocoder result](https://www.mapbox.com/mapbox-gl-js/example/point-from-geocoder-result/)
      */
     addSource: function(id, source) {
         this.style.addSource(id, source);
         this._update(true);
         return this;
     },
-    //TODO свой временный метод
-    updateSourceSprite: function (url) {
-        this.style.updateSourceSprite(url);
-
-        setTimeout(function () {
-            this._update(true);
-        }.bind(this), 1000);
-
-       //
-        return this;
-    },
-
 
     /**
      * Adds a [custom source type](#Custom Sources), making it available for use with
@@ -694,7 +687,6 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * Removes a source from the map's style.
      *
      * @param {string} id The ID of the source to remove.
-     * @fires source.remove
      * @returns {Map} `this`
      */
     removeSource: function(id) {
@@ -709,6 +701,9 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @param {string} id The ID of the source to get.
      * @returns {?Object} The style source with the specified ID, or `undefined`
      *   if the ID corresponds to no existing sources.
+     * @see [Create a draggable point](https://www.mapbox.com/mapbox-gl-js/example/drag-a-point/)
+     * @see [Animate a point](https://www.mapbox.com/mapbox-gl-js/example/animate-point-along-line/)
+     * @see [Add live realtime data](https://www.mapbox.com/mapbox-gl-js/example/live-geojson/)
      */
     getSource: function(id) {
         return this.style.getSource(id);
@@ -724,8 +719,10 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      *   [layer definition](https://www.mapbox.com/mapbox-gl-style-spec/#layers).
      * @param {string} [before] The ID of an existing layer to insert the new layer before.
      *   If this argument is omitted, the layer will be appended to the end of the layers array.
-     * @fires layer.add
      * @returns {Map} `this`
+     * @see [Create and style clusters](https://www.mapbox.com/mapbox-gl-js/example/cluster/)
+     * @see [Add a vector tile source](https://www.mapbox.com/mapbox-gl-js/example/vector-source/)
+     * @see [Add a WMS source](https://www.mapbox.com/mapbox-gl-js/example/wms/)
      */
     addLayer: function(layer, before) {
         this.style.addLayer(layer, before);
@@ -741,7 +738,6 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      *
      * @param {string} id The ID of the layer to remove.
      * @throws {Error} if no layer with the specified `id` exists.
-     * @fires layer.remove
      * @returns {Map} `this`
      */
     removeLayer: function(id) {
@@ -756,6 +752,8 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @param {string} id The ID of the layer to get.
      * @returns {?Object} The layer with the specified ID, or `undefined`
      *   if the ID corresponds to no existing layers.
+     * @see [Filter symbols by toggling a list](https://www.mapbox.com/mapbox-gl-js/example/filter-markers/)
+     * @see [Filter symbols by text input](https://www.mapbox.com/mapbox-gl-js/example/filter-markers-by-input/)
      */
     getLayer: function(id) {
         return this.style.getLayer(id);
@@ -770,6 +768,9 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @returns {Map} `this`
      * @example
      * map.setFilter('my-layer', ['==', 'name', 'USA']);
+     * @see [Filter features within map view](https://www.mapbox.com/mapbox-gl-js/example/filter-features-within-map-view/)
+     * @see [Highlight features under the mouse pointer](calendar.google.com/calendar/render#main_7)
+     * @see [Create a timeline animation](https://www.mapbox.com/mapbox-gl-js/example/timeline-animation/)
      */
     setFilter: function(layer, filter) {
         this.style.setFilter(layer, filter);
@@ -814,6 +815,9 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @returns {Map} `this`
      * @example
      * map.setPaintProperty('my-layer', 'fill-color', '#faafee');
+     * @see [Change a layer's color with buttons](https://www.mapbox.com/mapbox-gl-js/example/color-switcher/)
+     * @see [Adjust a layer's opacity](https://www.mapbox.com/mapbox-gl-js/example/adjust-layer-opacity/)
+     * @see [Create a draggable point](https://www.mapbox.com/mapbox-gl-js/example/drag-a-point/)
      */
     setPaintProperty: function(layer, name, value, klass) {
         this.style.setPaintProperty(layer, name, value, klass);
@@ -861,6 +865,27 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
     },
 
     /**
+     * Sets the any combination of light values.
+     *
+     * @param {Object} options Light properties to set. Must conform to the [Mapbox Style Specification](https://www.mapbox.com/mapbox-gl-style-spec/).
+     * @returns {Map} `this`
+     */
+    setLight: function(lightOptions) {
+        this.style.setLight(lightOptions);
+        this._update(true);
+        return this;
+    },
+
+    /**
+     * Returns the value of the light object.
+     *
+     * @returns {Object} light Light properties of the style.
+     */
+    getLight: function() {
+        return this.style.getLight();
+    },
+
+    /**
      * Returns the map's containing HTML element.
      *
      * @returns {HTMLElement} The map's container.
@@ -879,6 +904,8 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * map controls.
      *
      * @returns {HTMLElement} The container of the map's `<canvas>`.
+     * @see [Create a draggable point](https://www.mapbox.com/mapbox-gl-js/example/drag-a-point/)
+     * @see [Highlight features within a bounding box](https://www.mapbox.com/mapbox-gl-js/example/using-box-queryrenderedfeatures/)
      */
     getCanvasContainer: function() {
         return this._canvasContainer;
@@ -888,14 +915,17 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * Returns the map's `<canvas>` element.
      *
      * @returns {HTMLCanvasElement} The map's `<canvas>` element.
+     * @see [Measure distances](https://www.mapbox.com/mapbox-gl-js/example/measure/)
+     * @see [Display a popup on hover](https://www.mapbox.com/mapbox-gl-js/example/popup-on-hover/)
+     * @see [Center the map on a clicked symbol](https://www.mapbox.com/mapbox-gl-js/example/center-on-symbol/)
      */
     getCanvas: function() {
         return this._canvas;
     },
 
     _containerDimensions: function() {
-        var width = 0;
-        var height = 0;
+        let width = 0;
+        let height = 0;
 
         if (this._container) {
             width = this._container.offsetWidth || 400;
@@ -906,10 +936,10 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
     },
 
     _setupContainer: function() {
-        var container = this._container;
+        const container = this._container;
         container.classList.add('mapboxgl-map');
 
-        var canvasContainer = this._canvasContainer = DOM.create('div', 'mapboxgl-canvas-container', container);
+        const canvasContainer = this._canvasContainer = DOM.create('div', 'mapboxgl-canvas-container', container);
         if (this._interactive) {
             canvasContainer.classList.add('mapboxgl-interactive');
         }
@@ -920,35 +950,35 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
         this._canvas.addEventListener('webglcontextrestored', this._contextRestored, false);
         this._canvas.setAttribute('tabindex', 0);
 
-        var dimensions = this._containerDimensions();
+        const dimensions = this._containerDimensions();
         this._resizeCanvas(dimensions[0], dimensions[1]);
 
-        var controlContainer = this._controlContainer = DOM.create('div', 'mapboxgl-control-container', container);
-        var corners = this._controlCorners = {};
-        ['top-left', 'top-right', 'bottom-left', 'bottom-right'].forEach(function (pos) {
-            corners[pos] = DOM.create('div', 'mapboxgl-ctrl-' + pos, controlContainer);
+        const controlContainer = this._controlContainer = DOM.create('div', 'mapboxgl-control-container', container);
+        const corners = this._controlCorners = {};
+        ['top-left', 'top-right', 'bottom-left', 'bottom-right'].forEach((pos) => {
+            corners[pos] = DOM.create('div', `mapboxgl-ctrl-${pos}`, controlContainer);
         });
     },
 
     _resizeCanvas: function(width, height) {
-        var pixelRatio = window.devicePixelRatio || 1;
+        const pixelRatio = window.devicePixelRatio || 1;
 
         // Request the required canvas size taking the pixelratio into account.
         this._canvas.width = pixelRatio * width;
         this._canvas.height = pixelRatio * height;
 
         // Maintain the same canvas size, potentially downscaling it for HiDPI displays
-        this._canvas.style.width = width + 'px';
-        this._canvas.style.height = height + 'px';
+        this._canvas.style.width = `${width}px`;
+        this._canvas.style.height = `${height}px`;
     },
 
     _setupPainter: function() {
-        var attributes = util.extend({
+        const attributes = util.extend({
             failIfMajorPerformanceCaveat: this._failIfMajorPerformanceCaveat,
             preserveDrawingBuffer: this._preserveDrawingBuffer
         }, isSupported.webGLContextAttributes);
 
-        var gl = this._canvas.getContext('webgl', attributes) ||
+        const gl = this._canvas.getContext('webgl', attributes) ||
             this._canvas.getContext('experimental-webgl', attributes);
 
         if (!gl) {
@@ -1035,44 +1065,42 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @private
      */
     _render: function() {
-            if (this.style && this._styleDirty) {
-                this._styleDirty = false;
-                this.style.update(this._classes, this._classOptions);
-                this._classOptions = null;
-                this.style._recalculate(this.transform.zoom);
-            }
+        if (this.style && this._styleDirty) {
+            this._styleDirty = false;
+            this.style.update(this._classes, this._classOptions);
+            this._classOptions = null;
+            this.style._recalculate(this.transform.zoom);
+        }
 
-            if (this.style && this._sourcesDirty) {
-                this._sourcesDirty = false;
-                this.style._updateSources(this.transform);
-            }
+        if (this.style && this._sourcesDirty) {
+            this._sourcesDirty = false;
+            this.style._updateSources(this.transform);
+        }
 
-            this.painter.render(this.style, {
-                debug: this.showTileBoundaries,
-                showOverdrawInspector: this._showOverdrawInspector,
-                vertices: this.vertices,
-                rotating: this.rotating,
-                zooming: this.zooming
-            });
+        this.painter.render(this.style, {
+            debug: this.showTileBoundaries,
+            showOverdrawInspector: this._showOverdrawInspector,
+            vertices: this.vertices,
+            rotating: this.rotating,
+            zooming: this.zooming
+        });
 
-            this.fire('render');
+        this.fire('render');
 
-            if (this.loaded() && !this._loaded) {
-                this._loaded = true;
-                this.fire('load');
-            }
+        if (this.loaded() && !this._loaded) {
+            this._loaded = true;
+            this.fire('load');
+        }
 
-            this._frameId = null;
+        this._frameId = null;
 
-            if (!this.animationLoop.stopped()) {
-                this._styleDirty = true;
-            }
+        if (!this.animationLoop.stopped()) {
+            this._styleDirty = true;
+        }
 
-            if (this._sourcesDirty || this._repaint || this._styleDirty) {
-                this._rerender();
-            }
-
-       
+        if (this._sourcesDirty || this._repaint || this._styleDirty) {
+            this._rerender();
+        }
 
         return this;
     },
@@ -1089,7 +1117,7 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
         if (typeof window !== 'undefined') {
             window.removeEventListener('resize', this._onWindowResize, false);
         }
-        var extension = this.painter.gl.getExtension('WEBGL_lose_context');
+        const extension = this.painter.gl.getExtension('WEBGL_lose_context');
         if (extension) extension.loseContext();
         removeNode(this._canvasContainer);
         removeNode(this._controlContainer);
@@ -1261,6 +1289,7 @@ function removeNode(node) {
  * @memberof Map
  * @instance
  * @property {MapMouseEvent} data
+ * @see [Highlight features under the mouse pointer](https://www.mapbox.com/mapbox-gl-js/example/hover-styles/)
  */
 
 /**
@@ -1270,6 +1299,8 @@ function removeNode(node) {
  * @memberof Map
  * @instance
  * @property {MapMouseEvent} data
+ * @see [Highlight features within a bounding box](https://www.mapbox.com/mapbox-gl-js/example/using-box-queryrenderedfeatures/)
+ * @see [Create a draggable point](https://www.mapbox.com/mapbox-gl-js/example/drag-a-point/)
  */
 
 /**
@@ -1279,6 +1310,8 @@ function removeNode(node) {
  * @memberof Map
  * @instance
  * @property {MapMouseEvent} data
+ * @see [Highlight features within a bounding box](https://www.mapbox.com/mapbox-gl-js/example/using-box-queryrenderedfeatures/)
+ * @see [Create a draggable point](https://www.mapbox.com/mapbox-gl-js/example/drag-a-point/)
  */
 
 /**
@@ -1288,6 +1321,9 @@ function removeNode(node) {
  * @memberof Map
  * @instance
  * @property {MapMouseEvent} data
+ * @see [Get coordinates of the mouse pointer](https://www.mapbox.com/mapbox-gl-js/example/mouse-position/)
+ * @see [Highlight features under the mouse pointer](https://www.mapbox.com/mapbox-gl-js/example/hover-styles/)
+ * @see [Display a popup on hover](https://www.mapbox.com/mapbox-gl-js/example/popup-on-hover/)
  */
 
 /**
@@ -1333,6 +1369,8 @@ function removeNode(node) {
  * @memberof Map
  * @instance
  * @property {MapMouseEvent} data
+ * @see [Measure distances](https://www.mapbox.com/mapbox-gl-js/example/measure/)
+ * @see [Center the map on a clicked symbol](https://www.mapbox.com/mapbox-gl-js/example/center-on-symbol/)
  */
 
 /**
@@ -1361,6 +1399,9 @@ function removeNode(node) {
  * @memberof Map
  * @instance
  * @type {Object}
+ * @see [Draw GeoJSON points](https://www.mapbox.com/mapbox-gl-js/example/geojson-markers/)
+ * @see [Add live realtime data](https://www.mapbox.com/mapbox-gl-js/example/live-geojson/)
+ * @see [Animate a point](https://www.mapbox.com/mapbox-gl-js/example/animate-point-along-line/)
  */
 
 /**
@@ -1370,7 +1411,7 @@ function removeNode(node) {
  * @event movestart
  * @memberof Map
  * @instance
- * @property {MapMouseEvent | MapTouchEvent} data
+ * @property {{originalEvent: DragEvent}} data
  */
 
 /**
@@ -1390,11 +1431,13 @@ function removeNode(node) {
  * @event moveend
  * @memberof Map
  * @instance
- * @property {MapMouseEvent | MapTouchEvent} data
+ * @property {{originalEvent: DragEvent}} data
+ * @see [Play map locations as a slideshow](https://www.mapbox.com/mapbox-gl-js/example/playback-locations/)
+ * @see [Filter features within map view](https://www.mapbox.com/mapbox-gl-js/example/filter-features-within-map-view/)
  */
 
  /**
-  * Fired if any error occurs. This is GL JS's primary error reporting
+  * Fired when an error occurs. This is GL JS's primary error reporting
   * mechanism. We use an event instead of `throw` to better accommodate
   * asyncronous operations. If no listeners are bound to the `error` event, the
   * error will be printed to the console.
@@ -1404,3 +1447,54 @@ function removeNode(node) {
   * @instance
   * @property {{error: {message: string}}} data
   */
+
+/**
+ * Fired when any map data (style, source, tile, etc) loads or changes. See
+ * [`MapDataEvent`](#MapDataEvent) for more information.
+ *
+ * @event data
+ * @memberof Map
+ * @instance
+ * @property {MapDataEvent} data
+ */
+
+ /**
+  * Fired when any map data (style, source, tile, etc) begins loading or
+  * changing asyncronously. All `dataloading` events are followed by a `data`
+  * or `error` event. See [`MapDataEvent`](#MapDataEvent) for more information.
+  *
+  * @event dataloading
+  * @memberof Map
+  * @instance
+  * @property {MapDataEvent} data
+  */
+
+ /**
+  * A `MapDataEvent` object is emitted with the [`Map#data`](#Map.event:data)
+  * and [`Map#data`](#Map.event:dataloading) events. Possible values for
+  * `dataType`s are:
+  *
+  * - `'source'`: The non-tile data associated with any source
+  * - `'style'`: The [style](https://www.mapbox.com/mapbox-gl-style-spec/) used by the map
+  * - `'tile'`: A vector or raster tile
+  *
+  * @typedef {Object} MapDataEvent
+  * @property {string} type The event type.
+  * @property {string} dataType The type of data that has changed. One of `'source'`, `'style'`, or `'tile'`.
+  */
+
+ /**
+ * Fired immediately after the map has been removed with [`Map#remove`](#Map#remove).
+ *
+ * @event remove
+ * @memberof Map
+ * @instance
+ */
+
+  /**
+ * Fired immediately after the map has been resized.
+ *
+ * @event resize
+ * @memberof Map
+ * @instance
+ */

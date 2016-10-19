@@ -342,7 +342,6 @@ const Classes = {
     fill: require('./style_layer/fill_style_layer'),
     line: require('./style_layer/line_style_layer'),
     raster: require('./style_layer/raster_style_layer'),
-    //TODO  layer
     symbol: require('./style_layer/symbol_style_layer')
 };
 

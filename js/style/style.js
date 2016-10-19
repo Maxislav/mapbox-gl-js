@@ -1,32 +1,31 @@
 'use strict';
 
-var Evented = require('../util/evented');
-var StyleLayer = require('./style_layer');
-var ImageSprite = require('./image_sprite');
-var GlyphSource = require('../symbol/glyph_source');
-var SpriteAtlas = require('../symbol/sprite_atlas');
-var LineAtlas = require('../render/line_atlas');
-var util = require('../util/util');
-var ajax = require('../util/ajax');
-var mapbox = require('../util/mapbox');
-var browser = require('../util/browser');
-var Dispatcher = require('../util/dispatcher');
-var AnimationLoop = require('./animation_loop');
-var validateStyle = require('./validate_style');
-var Source = require('../source/source');
-var QueryFeatures = require('../source/query_features');
-var SourceCache = require('../source/source_cache');
-var styleSpec = require('./style_spec');
-var StyleFunction = require('./style_function');
-var getWorkerPool = require('../global_worker_pool');
-
-var spritePath ='sprite/sprite' ;
-var k = 0;
+const Evented = require('../util/evented');
+const StyleLayer = require('./style_layer');
+const ImageSprite = require('./image_sprite');
+const Light = require('./light');
+const GlyphSource = require('../symbol/glyph_source');
+const SpriteAtlas = require('../symbol/sprite_atlas');
+const LineAtlas = require('../render/line_atlas');
+const util = require('../util/util');
+const ajax = require('../util/ajax');
+const mapbox = require('../util/mapbox');
+const browser = require('../util/browser');
+const Dispatcher = require('../util/dispatcher');
+const AnimationLoop = require('./animation_loop');
+const validateStyle = require('./validate_style');
+const Source = require('../source/source');
+const QueryFeatures = require('../source/query_features');
+const SourceCache = require('../source/source_cache');
+const styleSpec = require('./style_spec');
+const StyleFunction = require('./style_function');
+const getWorkerPool = require('../global_worker_pool');
 
 module.exports = Style;
 
-function Style(stylesheet, animationLoop, options) {
-    this.animationLoop = animationLoop || new AnimationLoop();
+function Style(stylesheet, map, options) {
+    this.map = map;
+    this.animationLoop = (map && map.animationLoop) || new AnimationLoop();
     this.dispatcher = new Dispatcher(getWorkerPool(), this);
     this.spriteAtlas = new SpriteAtlas(1024, 1024);
     this.lineAtlas = new LineAtlas(256, 512);
@@ -34,7 +33,7 @@ function Style(stylesheet, animationLoop, options) {
     this._layers = {};
     this._order  = [];
     this._groups = [];
-    this.sources = {};
+    this.sourceCaches = {};
     this.zoomHistory = {};
 
     util.bindAll(['_redoPlacement'], this);
@@ -45,7 +44,10 @@ function Style(stylesheet, animationLoop, options) {
         validate: typeof stylesheet === 'string' ? !mapbox.isMapboxURL(stylesheet) : true
     }, options);
 
-    var stylesheetLoaded = function(err, stylesheet) {
+    this.setEventedParent(map);
+    this.fire('dataloading', {dataType: 'style'});
+
+    const stylesheetLoaded = function(err, stylesheet) {
         if (err) {
             this.fire('error', {error: err});
             return;
@@ -58,42 +60,32 @@ function Style(stylesheet, animationLoop, options) {
 
         this.updateClasses();
 
-        var sources = stylesheet.sources;
-        for (var id in sources) {
-            this.addSource(id, sources[id], options);
+        for (const id in stylesheet.sources) {
+            this.addSource(id, stylesheet.sources[id], options);
         }
 
         if (stylesheet.sprite) {
-
-            console.log("new ImageSprite");
             this.sprite = new ImageSprite(stylesheet.sprite);
             this.sprite.setEventedParent(this);
-
-            //TODO new ImageSprite timeout
-            setTimeout(function () {
-             //   this.sprite = new ImageSprite('sprite2/sprite');
-                //this.sprite.setEventedParent(this);
-            }.bind(this), 2000)
         }
 
         this.glyphSource = new GlyphSource(stylesheet.glyphs);
         this._resolve();
+        this.fire('data', {dataType: 'style'});
         this.fire('style.load');
     }.bind(this);
 
     if (typeof stylesheet === 'string') {
         ajax.getJSON(mapbox.normalizeStyleURL(stylesheet), stylesheetLoaded);
     } else {
-
-       console.log('stylesheetLoaded');
         browser.frame(stylesheetLoaded.bind(this, null, stylesheet));
     }
 
     this.on('source.load', function(event) {
-        var source = event.source;
+        const source = event.source;
         if (source && source.vectorLayerIds) {
-            for (var layerId in this._layers) {
-                var layer = this._layers[layerId];
+            for (const layerId in this._layers) {
+                const layer = this._layers[layerId];
                 if (layer.source === source.id) {
                     this._validateLayer(layer);
                 }
@@ -106,18 +98,19 @@ Style.prototype = util.inherit(Evented, {
     _loaded: false,
 
     _validateLayer: function(layer) {
-        var source = this.sources[layer.source];
+        const sourceCache = this.sourceCaches[layer.source];
 
         if (!layer.sourceLayer) return;
-        if (!source) return;
+        if (!sourceCache) return;
+        const source = sourceCache.getSource();
         if (!source.vectorLayerIds) return;
 
         if (source.vectorLayerIds.indexOf(layer.sourceLayer) === -1) {
             this.fire('error', {
                 error: new Error(
-                    'Source layer "' + layer.sourceLayer + '" ' +
-                    'does not exist on source "' + source.id + '" ' +
-                    'as specified by style layer "' + layer.id + '"'
+                    `Source layer "${layer.sourceLayer}" ` +
+                    `does not exist on source "${source.id}" ` +
+                    `as specified by style layer "${layer.id}"`
                 )
             });
         }
@@ -130,8 +123,8 @@ Style.prototype = util.inherit(Evented, {
         if (Object.keys(this._updates.sources).length)
             return false;
 
-        for (var id in this.sources)
-            if (!this.sources[id].loaded())
+        for (const id in this.sourceCaches)
+            if (!this.sourceCaches[id].loaded())
                 return false;
 
         if (this.sprite && !this.sprite.loaded())
@@ -141,16 +134,15 @@ Style.prototype = util.inherit(Evented, {
     },
 
     _resolve: function() {
-        var layer, layerJSON;
+        let layer, layerJSON;
 
         this._layers = {};
-        this._order  = this.stylesheet.layers.map(function(layer) {
-            console.log(layer.id)
+        this._order  = this.stylesheet.layers.map((layer) => {
             return layer.id;
         });
 
         // resolve all layers WITHOUT a ref
-        for (var i = 0; i < this.stylesheet.layers.length; i++) {
+        for (let i = 0; i < this.stylesheet.layers.length; i++) {
             layerJSON = this.stylesheet.layers[i];
             if (layerJSON.ref) continue;
             layer = StyleLayer.create(layerJSON);
@@ -159,10 +151,10 @@ Style.prototype = util.inherit(Evented, {
         }
 
         // resolve all layers WITH a ref
-        for (var j = 0; j < this.stylesheet.layers.length; j++) {
+        for (let j = 0; j < this.stylesheet.layers.length; j++) {
             layerJSON = this.stylesheet.layers[j];
             if (!layerJSON.ref) continue;
-            var refLayer = this.getLayer(layerJSON.ref);
+            const refLayer = this.getLayer(layerJSON.ref);
             layer = StyleLayer.create(layerJSON, refLayer);
             this._layers[layer.id] = layer;
             layer.setEventedParent(this, {layer: {id: layer.id}});
@@ -170,16 +162,18 @@ Style.prototype = util.inherit(Evented, {
 
         this._groupLayers();
         this._updateWorkerLayers();
+
+        this.light = new Light(this.stylesheet.light);
     },
 
     _groupLayers: function() {
-        var group;
+        let group;
 
         this._groups = [];
 
         // Split into groups of consecutive top-level layers with the same source.
-        for (var i = 0; i < this._order.length; ++i) {
-            var layer = this._layers[this._order[i]];
+        for (let i = 0; i < this._order.length; ++i) {
+            const layer = this._layers[this._order[i]];
 
             if (!group || layer.source !== group.source) {
                 group = [];
@@ -197,9 +191,9 @@ Style.prototype = util.inherit(Evented, {
 
     _serializeLayers: function(ids) {
         ids = ids || this._order;
-        var serialized = [];
-        var options = {includeRefProperties: true};
-        for (var i = 0; i < ids.length; i++) {
+        const serialized = [];
+        const options = {includeRefProperties: true};
+        for (let i = 0; i < ids.length; i++) {
             serialized.push(this._layers[ids[i]].serialize(options));
         }
         return serialized;
@@ -210,41 +204,47 @@ Style.prototype = util.inherit(Evented, {
 
         classes = classes || [];
         options = options || {transition: true};
-        var transition = this.stylesheet.transition || {};
+        const transition = this.stylesheet.transition || {};
 
-        var layers = this._updates.allPaintProps ? this._layers : this._updates.paintProps;
+        const layers = this._updates.allPaintProps ? this._layers : this._updates.paintProps;
 
-        for (var id in layers) {
-            var layer = this._layers[id];
-            var props = this._updates.paintProps[id];
+        for (const id in layers) {
+            const layer = this._layers[id];
+            const props = this._updates.paintProps[id];
 
             if (this._updates.allPaintProps || props.all) {
                 layer.updatePaintTransitions(classes, options, transition, this.animationLoop);
             } else {
-                for (var paintName in props) {
+                for (const paintName in props) {
                     this._layers[id].updatePaintTransition(paintName, classes, options, transition, this.animationLoop);
                 }
             }
         }
+
+        this.light.updateLightTransitions(options, transition, this.animationLoop);
     },
 
     _recalculate: function(z) {
-        for (var sourceId in this.sources)
-            this.sources[sourceId].used = false;
+        if (!this._loaded) return;
+
+        for (const sourceId in this.sourceCaches)
+            this.sourceCaches[sourceId].used = false;
 
         this._updateZoomHistory(z);
 
         this.rasterFadeDuration = 300;
-        for (var layerId in this._layers) {
-            var layer = this._layers[layerId];
+        for (const layerId in this._layers) {
+            const layer = this._layers[layerId];
 
             layer.recalculate(z, this.zoomHistory);
             if (!layer.isHidden(z) && layer.source) {
-                this.sources[layer.source].used = true;
+                this.sourceCaches[layer.source].used = true;
             }
         }
 
-        var maxZoomTransitionDuration = 300;
+        this.light.recalculate(z, this.zoomHistory);
+
+        const maxZoomTransitionDuration = 300;
         if (Math.floor(this.z) !== Math.floor(z)) {
             this.animationLoop.set(maxZoomTransitionDuration);
         }
@@ -254,7 +254,7 @@ Style.prototype = util.inherit(Evented, {
 
     _updateZoomHistory: function(z) {
 
-        var zh = this.zoomHistory;
+        const zh = this.zoomHistory;
 
         if (zh.lastIntegerZoom === undefined) {
             // first time
@@ -282,13 +282,6 @@ Style.prototype = util.inherit(Evented, {
             throw new Error('Style is not done loading');
         }
     },
-    //TODO
-
-    updateSourceSprite: function (opts) {
-        this.sprite = new ImageSprite("sprite2/sprite");
-        this.sprite.setEventedParent(this);
-        console.log(opts)
-    },
 
     /**
      * Apply queued style updates in a batch
@@ -301,27 +294,27 @@ Style.prototype = util.inherit(Evented, {
             this._groupLayers();
             this._updateWorkerLayers();
         } else {
-            var updatedIds = Object.keys(this._updates.layers);
+            const updatedIds = Object.keys(this._updates.layers);
             if (updatedIds.length) {
                 this._updateWorkerLayers(updatedIds);
             }
         }
 
-        var updatedSourceIds = Object.keys(this._updates.sources);
-        var i;
+        const updatedSourceIds = Object.keys(this._updates.sources);
+        let i;
         for (i = 0; i < updatedSourceIds.length; i++) {
             this._reloadSource(updatedSourceIds[i]);
         }
 
         for (i = 0; i < this._updates.events.length; i++) {
-            var args = this._updates.events[i];
+            const args = this._updates.events[i];
             this.fire(args[0], args[1]);
         }
 
         this._applyClasses(classes, options);
 
         if (this._updates.changed) {
-            this.fire('style.change');
+            this.fire('data', {dataType: 'style'});
         }
 
         this._resetUpdates();
@@ -341,31 +334,24 @@ Style.prototype = util.inherit(Evented, {
     addSource: function(id, source, options) {
         this._checkLoaded();
 
-        if (this.sources[id] !== undefined) {
+        if (this.sourceCaches[id] !== undefined) {
             throw new Error('There is already a source with this ID');
         }
 
         if (!source.type) {
-            throw new Error('The type property must be defined, but the only the following properties were given: ' + Object.keys(source) + '.');
+            throw new Error(`The type property must be defined, but the only the following properties were given: ${Object.keys(source)}.`);
         }
 
-        var builtIns = ['vector', 'raster', 'geojson', 'video', 'image'];
-        var shouldValidate = builtIns.indexOf(source.type) >= 0;
-        if (shouldValidate && this._validate(validateStyle.source, 'sources.' + id, source, null, options)) {
-            return this
-        };
-
+        const builtIns = ['vector', 'raster', 'geojson', 'video', 'image'];
+        const shouldValidate = builtIns.indexOf(source.type) >= 0;
+        if (shouldValidate && this._validate(validateStyle.source, `sources.${id}`, source, null, options)) return this;
 
         source = new SourceCache(id, source, this.dispatcher);
-        if(id == "points"){
-            console.log('new SourceCache', source);
-        }
-
-        this.sources[id] = source;
+        this.sourceCaches[id] = source;
         source.style = this;
-        source.setEventedParent(this, {source: source});
+        source.setEventedParent(this, {source: source.getSource()});
 
-        this._updates.events.push(['source.add', {source: source}]);
+        if (source.onAdd) source.onAdd(this.map);
         this._updates.changed = true;
 
         return this;
@@ -381,15 +367,16 @@ Style.prototype = util.inherit(Evented, {
     removeSource: function(id) {
         this._checkLoaded();
 
-        if (this.sources[id] === undefined) {
+        if (this.sourceCaches[id] === undefined) {
             throw new Error('There is no source with this ID');
         }
-        var source = this.sources[id];
-        delete this.sources[id];
+        const sourceCache = this.sourceCaches[id];
+        delete this.sourceCaches[id];
         delete this._updates.sources[id];
-        source.setEventedParent(null);
+        sourceCache.setEventedParent(null);
+        sourceCache.clearTiles();
 
-        this._updates.events.push(['source.remove', {source: source}]);
+        if (sourceCache.onRemove) sourceCache.onRemove(this.map);
         this._updates.changed = true;
 
         return this;
@@ -402,7 +389,7 @@ Style.prototype = util.inherit(Evented, {
      * @private
      */
     getSource: function(id) {
-        return this.sources[id] && this.sources[id].getSource();
+        return this.sourceCaches[id] && this.sourceCaches[id].getSource();
     },
 
     /**
@@ -410,24 +397,18 @@ Style.prototype = util.inherit(Evented, {
      * ID `before`, or appended if `before` is omitted.
      * @param {StyleLayer|Object} layer
      * @param {string=} before  ID of an existing layer to insert before
-     * @fires layer.add
      * @returns {Style} `this`
      * @private
      */
     addLayer: function(layer, before, options) {
-        var l = layer;
-
         this._checkLoaded();
-        //TODO еще можно изменить
-     //  this.sprite = new ImageSprite('sprite2/sprite');
-       //this.sprite.setEventedParent(this);
 
         if (!(layer instanceof StyleLayer)) {
             // this layer is not in the style.layers array, so we pass an impossible array index
             if (this._validate(validateStyle.layer,
-                    'layers.' + layer.id, layer, {arrayIndex: -1}, options)) return this;
+                    `layers.${layer.id}`, layer, {arrayIndex: -1}, options)) return this;
 
-            var refLayer = layer.ref && this.getLayer(layer.ref);
+            const refLayer = layer.ref && this.getLayer(layer.ref);
             layer = StyleLayer.create(layer, refLayer);
         }
         this._validateLayer(layer);
@@ -441,18 +422,8 @@ Style.prototype = util.inherit(Evented, {
         if (layer.source) {
             this._updates.sources[layer.source] = true;
         }
-        this._updates.events.push(['layer.add', {layer: layer}]);
 
-        setTimeout(function () {
-            //TODO еще можно изменить
-            this.sprite = new ImageSprite('sprite2/sprite');
-            this.sprite.setEventedParent(this);
-           // this.sprite.resize()
-            //это не помогает
-            //this.updateClasses(layer.id);
-        }.bind(this),1000);
-
-        this.updateClasses(layer.id);
+        return this.updateClasses(layer.id);
     },
 
     /**
@@ -465,11 +436,11 @@ Style.prototype = util.inherit(Evented, {
     removeLayer: function(id) {
         this._checkLoaded();
 
-        var layer = this._layers[id];
+        const layer = this._layers[id];
         if (layer === undefined) {
             throw new Error('There is no layer with this ID');
         }
-        for (var i in this._layers) {
+        for (const i in this._layers) {
             if (this._layers[i].ref === id) {
                 this.removeLayer(i);
             }
@@ -483,7 +454,6 @@ Style.prototype = util.inherit(Evented, {
         this._order.splice(this._order.indexOf(id), 1);
 
         this._updates.allLayers = true;
-        this._updates.events.push(['layer.remove', {layer: layer}]);
         this._updates.changed = true;
 
         return this;
@@ -509,7 +479,7 @@ Style.prototype = util.inherit(Evented, {
      * @private
      */
     getReferentLayer: function(id) {
-        var layer = this.getLayer(id);
+        let layer = this.getLayer(id);
         if (layer.ref) {
             layer = this.getLayer(layer.ref);
         }
@@ -519,7 +489,7 @@ Style.prototype = util.inherit(Evented, {
     setLayerZoomRange: function(layerId, minzoom, maxzoom) {
         this._checkLoaded();
 
-        var layer = this.getReferentLayer(layerId);
+        const layer = this.getReferentLayer(layerId);
 
         if (layer.minzoom === minzoom && layer.maxzoom === maxzoom) return this;
 
@@ -535,9 +505,9 @@ Style.prototype = util.inherit(Evented, {
     setFilter: function(layerId, filter) {
         this._checkLoaded();
 
-        var layer = this.getReferentLayer(layerId);
+        const layer = this.getReferentLayer(layerId);
 
-        if (filter !== null && this._validate(validateStyle.filter, 'layers.' + layer.id + '.filter', filter)) return this;
+        if (filter !== null && this._validate(validateStyle.filter, `layers.${layer.id}.filter`, filter)) return this;
 
         if (util.deepEqual(layer.filter, filter)) return this;
         layer.filter = util.clone(filter);
@@ -558,7 +528,7 @@ Style.prototype = util.inherit(Evented, {
     setLayoutProperty: function(layerId, name, value) {
         this._checkLoaded();
 
-        var layer = this.getReferentLayer(layerId);
+        const layer = this.getReferentLayer(layerId);
 
         if (util.deepEqual(layer.getLayoutProperty(name), value)) return this;
 
@@ -580,14 +550,14 @@ Style.prototype = util.inherit(Evented, {
     setPaintProperty: function(layerId, name, value, klass) {
         this._checkLoaded();
 
-        var layer = this.getLayer(layerId);
+        const layer = this.getLayer(layerId);
 
         if (util.deepEqual(layer.getPaintProperty(name, klass), value)) return this;
 
-        var wasFeatureConstant = layer.isPaintValueFeatureConstant(name);
+        const wasFeatureConstant = layer.isPaintValueFeatureConstant(name);
         layer.setPaintProperty(name, value, klass);
 
-        var isFeatureConstant = !(
+        const isFeatureConstant = !(
             value &&
             StyleFunction.isFunctionDefinition(value) &&
             value.property !== '$zoom' &&
@@ -613,12 +583,10 @@ Style.prototype = util.inherit(Evented, {
         if (!layerId) {
             this._updates.allPaintProps = true;
         } else {
-            var props = this._updates.paintProps;
+            const props = this._updates.paintProps;
             if (!props[layerId]) props[layerId] = {};
             props[layerId][paintName || 'all'] = true;
         }
-
-        console.log('updateClasses');
         return this;
     },
 
@@ -627,6 +595,7 @@ Style.prototype = util.inherit(Evented, {
             version: this.stylesheet.version,
             name: this.stylesheet.name,
             metadata: this.stylesheet.metadata,
+            light: this.stylesheet.light,
             center: this.stylesheet.center,
             zoom: this.stylesheet.zoom,
             bearing: this.stylesheet.bearing,
@@ -634,13 +603,13 @@ Style.prototype = util.inherit(Evented, {
             sprite: this.stylesheet.sprite,
             glyphs: this.stylesheet.glyphs,
             transition: this.stylesheet.transition,
-            sources: util.mapObject(this.sources, function(source) {
+            sources: util.mapObject(this.sourceCaches, (source) => {
                 return source.serialize();
             }),
             layers: this._order.map(function(id) {
                 return this._layers[id].serialize();
             }, this)
-        }, function(value) { return value !== undefined; });
+        }, (value) => { return value !== undefined; });
     },
 
     _updateLayer: function (layer) {
@@ -653,13 +622,13 @@ Style.prototype = util.inherit(Evented, {
     },
 
     _flattenRenderedFeatures: function(sourceResults) {
-        var features = [];
-        for (var l = this._order.length - 1; l >= 0; l--) {
-            var layerID = this._order[l];
-            for (var s = 0; s < sourceResults.length; s++) {
-                var layerFeatures = sourceResults[s][layerID];
+        const features = [];
+        for (let l = this._order.length - 1; l >= 0; l--) {
+            const layerID = this._order[l];
+            for (let s = 0; s < sourceResults.length; s++) {
+                const layerFeatures = sourceResults[s][layerID];
                 if (layerFeatures) {
-                    for (var f = 0; f < layerFeatures.length; f++) {
+                    for (let f = 0; f < layerFeatures.length; f++) {
                         features.push(layerFeatures[f]);
                     }
                 }
@@ -673,24 +642,24 @@ Style.prototype = util.inherit(Evented, {
             this._validate(validateStyle.filter, 'queryRenderedFeatures.filter', params.filter);
         }
 
-        var includedSources = {};
+        const includedSources = {};
         if (params && params.layers) {
-            for (var i = 0; i < params.layers.length; i++) {
-                var layer = this._layers[params.layers[i]];
+            for (let i = 0; i < params.layers.length; i++) {
+                const layer = this._layers[params.layers[i]];
                 if (!(layer instanceof StyleLayer)) {
                     // this layer is not in the style.layers array
-                    return this.fire('error', {error: 'The layer \'' + params.layers[i] +
-                        '\' does not exist in the map\'s style and cannot be queried for features.'});
+                    return this.fire('error', {error: `The layer '${params.layers[i]
+                        }' does not exist in the map's style and cannot be queried for features.`});
                 }
                 includedSources[layer.source] = true;
             }
         }
 
-        var sourceResults = [];
-        for (var id in this.sources) {
+        const sourceResults = [];
+        for (const id in this.sourceCaches) {
             if (params.layers && !includedSources[id]) continue;
-            var source = this.sources[id];
-            var results = QueryFeatures.rendered(source, this._layers, queryGeometry, params, zoom, bearing);
+            const sourceCache = this.sourceCaches[id];
+            const results = QueryFeatures.rendered(sourceCache, this._layers, queryGeometry, params, zoom, bearing);
             sourceResults.push(results);
         }
         return this._flattenRenderedFeatures(sourceResults);
@@ -700,13 +669,13 @@ Style.prototype = util.inherit(Evented, {
         if (params && params.filter) {
             this._validate(validateStyle.filter, 'querySourceFeatures.filter', params.filter);
         }
-        var source = this.sources[sourceID];
-        return source ? QueryFeatures.source(source, params) : [];
+        const sourceCache = this.sourceCaches[sourceID];
+        return sourceCache ? QueryFeatures.source(sourceCache, params) : [];
     },
 
     addSourceType: function (name, SourceType, callback) {
         if (Source.getType(name)) {
-            return callback(new Error('A source type called "' + name + '" already exists.'));
+            return callback(new Error(`A source type called "${name}" already exists.`));
         }
 
         Source.setType(name, SourceType);
@@ -719,6 +688,29 @@ Style.prototype = util.inherit(Evented, {
             name: name,
             url: SourceType.workerSourceURL
         }, callback);
+    },
+
+    getLight: function() {
+        return this.light.getLight();
+    },
+
+    setLight: function(lightOptions, transitionOptions) {
+        this._checkLoaded();
+
+        const light = this.light.getLight();
+        let _update = false;
+        for (const key in lightOptions) {
+            if (!util.deepEqual(lightOptions[key], light[key])) {
+                _update = true;
+                break;
+            }
+        }
+        if (!_update) return this;
+
+        const transition = this.stylesheet.transition || {};
+
+        this.light.setLight(lightOptions);
+        return this.light.updateLightTransitions(transitionOptions || {transition: true}, transition, this.animationLoop);
     },
 
     _validate: function(validate, key, value, props, options) {
@@ -734,43 +726,38 @@ Style.prototype = util.inherit(Evented, {
     },
 
     _remove: function() {
+        for (const id in this.sourceCaches) {
+            this.sourceCaches[id].clearTiles();
+        }
         this.dispatcher.remove();
     },
 
     _reloadSource: function(id) {
-        this.sources[id].reload();
+        this.sourceCaches[id].reload();
     },
 
     _updateSources: function(transform) {
-        for (var id in this.sources) {
-            this.sources[id].update(transform);
+        for (const id in this.sourceCaches) {
+            this.sourceCaches[id].update(transform);
         }
     },
 
     _redoPlacement: function() {
-        for (var id in this.sources) {
-            if (this.sources[id].redoPlacement) this.sources[id].redoPlacement();
+        for (const id in this.sourceCaches) {
+            if (this.sourceCaches[id].redoPlacement) this.sourceCaches[id].redoPlacement();
         }
     },
 
     // Callbacks from web workers
-    //TODO  Callbacks from web workers get icons
+
     'get icons': function(mapId, params, callback) {
-        var sprite = this.sprite;
-        var spriteAtlas = this.spriteAtlas;
+        const sprite = this.sprite;
+        const spriteAtlas = this.spriteAtlas;
         if (sprite.loaded()) {
             spriteAtlas.setSprite(sprite);
             spriteAtlas.addIcons(params.icons, callback);
-
-            setTimeout(function () {
-               // this.sprite = new ImageSprite('sprite2/sprite');
-                //this.sprite.setEventedParent(this);
-
-                //spriteAtlas.addIcons(params.icons, callback);
-            }.bind(this), 1000)
-
         } else {
-            sprite.on('style.change', function() {
+            sprite.on('data', () => {
                 spriteAtlas.setSprite(sprite);
                 spriteAtlas.addIcons(params.icons, callback);
             });
@@ -778,11 +765,11 @@ Style.prototype = util.inherit(Evented, {
     },
 
     'get glyphs': function(mapId, params, callback) {
-        var stacks = params.stacks,
-            remaining = Object.keys(stacks).length,
-            allGlyphs = {};
+        const stacks = params.stacks;
+        let remaining = Object.keys(stacks).length;
+        const allGlyphs = {};
 
-        for (var fontName in stacks) {
+        for (const fontName in stacks) {
             this.glyphSource.getSimpleGlyphs(fontName, stacks[fontName], params.uid, done);
         }
 

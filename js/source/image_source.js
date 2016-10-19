@@ -59,8 +59,6 @@ function ImageSource(id, options, dispatcher, eventedParent) {
         this.fire('data', {dataType: 'source'});
         this.fire('source.load');
 
-        console.log('options.url', options.url);
-
         if (this.map) {
             this.setCoordinates(options.coordinates);
         }
