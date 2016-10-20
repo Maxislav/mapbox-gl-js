@@ -39,36 +39,13 @@ function init() {
 
 
 
-
             map.addSource("points", {
                 "type": "geojson",
                 "data": data
             });
 
 
-           /* setTimeout(function () {
-                map.updateSourceSprite('sprite2/sprite');
-                console.log("go update sprite")
-                setTimeout(function () {
-                    map.addSource("points2", {"type": "geojson", "data": data});
-
-                    map.addLayer({
-                        "id": "points",
-                        "type": "symbol",
-                        "source": "points",
-                        "layout": {
-                            "icon-image": "{icon}"
-                            // "text-field": "{title}",
-                            //"text-font": ["Open Sans Semibold", "Arial Unicode MS Bold"],
-                            //"text-offset": [1,-1],
-                            //"text-anchor": "left"
-                        }
-                    });
-                },1000)
-
-            },2000);*/
-
-
+         
             setTimeout(function () {
                 map.addLayer({
                     "id": "points",
@@ -85,11 +62,7 @@ function init() {
             }, 1000);
 
 
-        /*    setTimeout(function () {
-                map.getSource('points').setData(data2)
-            }, 5000)
-*/
-
+      
 
         }, 1000)
 

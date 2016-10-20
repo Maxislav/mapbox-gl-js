@@ -616,6 +616,8 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @see [Change a map's style](https://www.mapbox.com/mapbox-gl-js/example/setstyle/)
      */
     setStyle: function(style) {
+        console.log(this.style);
+        
         if (this.style) {
             this.style.setEventedParent(null);
             this.style._remove();
@@ -689,6 +691,8 @@ util.extend(Map.prototype, /** @lends Map.prototype */{
      * @param {string} id The ID of the source to remove.
      * @returns {Map} `this`
      */
+   
+    
     removeSource: function(id) {
         this.style.removeSource(id);
         this._update(true);

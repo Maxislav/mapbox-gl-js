@@ -282,6 +282,9 @@ Painter.prototype.renderLayer = function(painter, sourceCache, layer, coords) {
         layer.getPaintValue('fill-extrude-height') !== 0)) {
         type = 'extrusion';
     }
+    if(type=='symbol'){
+        type
+    }
 
     draw[type](painter, sourceCache, layer, coords);
 };

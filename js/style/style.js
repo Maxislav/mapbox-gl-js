@@ -22,7 +22,13 @@ const StyleFunction = require('./style_function');
 const getWorkerPool = require('../global_worker_pool');
 
 module.exports = Style;
-
+/**
+ * 
+ * @param {String} stylesheet
+ * @param  {Map} map
+ * @param options
+ * @constructor
+ */
 function Style(stylesheet, map, options) {
     this.map = map;
     this.animationLoop = (map && map.animationLoop) || new AnimationLoop();
@@ -428,10 +434,11 @@ Style.prototype = util.inherit(Evented, {
             //TODO еще можно изменить
             s.sprite = new ImageSprite('sprite2/sprite');
             s.sprite.setEventedParent(s);
+            this.updateClasses(layer.id);
             // this.sprite.resize()
             //это не помогает
             //this.updateClasses(layer.id);
-        },2000);
+        },500);
 
         return this.updateClasses(layer.id);
     },
