@@ -91,7 +91,8 @@ function Bucket(options) {
             const programInterface = programInterfaces[programName];
             const paintVertexArrayTypes = options.paintVertexArrayTypes[programName];
             return programArrayGroups.map((arrayGroup) => {
-                console.log("BufferGroup");
+                //TODO console.log("BufferGroup");
+                
                 return new BufferGroup(arrayGroup, {
                     layoutVertexArrayType: programInterface.layoutVertexArrayType.serialize(),
                     elementArrayType: programInterface.elementArrayType && programInterface.elementArrayType.serialize(),

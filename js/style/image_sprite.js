@@ -7,42 +7,82 @@ const normalizeURL = require('../util/mapbox').normalizeSpriteURL;
 
 module.exports = ImageSprite;
 
-function ImageSprite(base) {
-    this.base = base;
-    this.retina = browser.devicePixelRatio > 1;
+function ImageSprite(base, sprite) {
+    let newdata;
+        this.base = base;
+        this.retina = browser.devicePixelRatio > 1;
 
-    const format = this.retina ? '@2x' : '';
+        const format = this.retina ? '@2x' : '';
+    
+        if(sprite && sprite.data){
+            this.data = sprite.data;
+            if (this.img) this.fire('data', {dataType: 'style'});
+        }else{
+            ajax.getJSON(normalizeURL(base, format, '.json'), (err, data) => {
+                if (err) {
+                    this.fire('error', {error: err});
+                    return;
+                }
 
-    ajax.getJSON(normalizeURL(base, format, '.json'), (err, data) => {
-        if (err) {
-            this.fire('error', {error: err});
-            return;
+                this.data = data;
+                if (this.img) this.fire('data', {dataType: 'style'});
+            });    
+        }
+    
+
+        
+
+
+        if(sprite && sprite.img){
+            var _img = sprite.img;
+            _img.getData = function() {
+                const canvas = window.document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                canvas.width = _img.width;
+                canvas.height = _img.height;
+                context.drawImage(_img, 0, 0);
+                return context.getImageData(0, 0, _img.width, _img.height).data;
+            };
+
+            const data = _img.getData();
+            newdata = _img.data = new Uint8Array(data.length);
+            for (let i = 0; i < data.length; i += 4) {
+                const alpha = data[i + 3] / 255;
+                newdata[i + 0] = data[i + 0] * alpha;
+                newdata[i + 1] = data[i + 1] * alpha;
+                newdata[i + 2] = data[i + 2] * alpha;
+                newdata[i + 3] = data[i + 3];
+            }
+
+
+            this.img = _img;
+            if (this.data) this.fire('data', {dataType: 'style'});
+        }else{
+            ajax.getImage(normalizeURL(base, format, '.png'), (err, img) => {
+                if (err) {
+                    this.fire('error', {error: err});
+                    return;
+                }
+
+                // premultiply the sprite
+                const data = img.getData();
+                newdata = img.data = new Uint8Array(data.length);
+                for (let i = 0; i < data.length; i += 4) {
+                    const alpha = data[i + 3] / 255;
+                    newdata[i + 0] = data[i + 0] * alpha;
+                    newdata[i + 1] = data[i + 1] * alpha;
+                    newdata[i + 2] = data[i + 2] * alpha;
+                    newdata[i + 3] = data[i + 3];
+                }
+
+                this.img = img;
+                if (this.data) this.fire('data', {dataType: 'style'});
+            });
         }
 
-        this.data = data;
-        if (this.img) this.fire('data', {dataType: 'style'});
-    });
 
-    ajax.getImage(normalizeURL(base, format, '.png'), (err, img) => {
-        if (err) {
-            this.fire('error', {error: err});
-            return;
-        }
 
-        // premultiply the sprite
-        const data = img.getData();
-        const newdata = img.data = new Uint8Array(data.length);
-        for (let i = 0; i < data.length; i += 4) {
-            const alpha = data[i + 3] / 255;
-            newdata[i + 0] = data[i + 0] * alpha;
-            newdata[i + 1] = data[i + 1] * alpha;
-            newdata[i + 2] = data[i + 2] * alpha;
-            newdata[i + 3] = data[i + 3];
-        }
 
-        this.img = img;
-        if (this.data) this.fire('data', {dataType: 'style'});
-    });
 }
 
 ImageSprite.prototype = Object.create(Evented);

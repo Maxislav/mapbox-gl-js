@@ -69,11 +69,12 @@ function Style(stylesheet, map, options) {
         for (const id in stylesheet.sources) {
             this.addSource(id, stylesheet.sources[id], options);
         }
-
+        
         if (stylesheet.sprite) {
-            this.sprite = new ImageSprite(stylesheet.sprite);
+            this.sprite = new ImageSprite(stylesheet.sprite, map.sprite);
             this.sprite.setEventedParent(this);
         }
+        
 
         this.glyphSource = new GlyphSource(stylesheet.glyphs);
         this._resolve();
@@ -430,7 +431,7 @@ Style.prototype = util.inherit(Evented, {
         }
 
         var s = this;
-        setTimeout( () => {
+        /*setTimeout( () => {
             //TODO еще можно изменить
             s.sprite = new ImageSprite('sprite2/sprite');
             s.sprite.setEventedParent(s);
@@ -439,7 +440,7 @@ Style.prototype = util.inherit(Evented, {
             //это не помогает
             //this.updateClasses(layer.id);
         },500);
-
+*/
         return this.updateClasses(layer.id);
     },
 

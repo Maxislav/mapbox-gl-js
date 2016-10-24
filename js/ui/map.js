@@ -128,6 +128,8 @@ const defaultOptions = {
  */
 const Map = module.exports = function(options) {
     options = util.extend({}, defaultOptions, options);
+    
+    this.sprite = options.sprite || null;
 
     this._interactive = options.interactive;
     this._failIfMajorPerformanceCaveat = options.failIfMajorPerformanceCaveat;
